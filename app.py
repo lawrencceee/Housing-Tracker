@@ -12,15 +12,16 @@ load_dotenv()
 DATABASE_ID = "244aef75cd248040aee9fbbe4a05e42f"
 
 try:
-    notion = Client(auth=os.getenv("NOTION_API_KEY"))
+    notion = Client(auth=st.secrets["NOTION_API_KEY"])
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 except Exception as e:
-    st.error(f"Failed to initialize clients. Please check your API keys in the .env file. Error: {e}")
+    st.error(f"Failed to initialize clients. Please check your API keys in Streamlit secrets. Error: {e}")
     st.stop()
-    
+
+# ✅ Set environment variables for LangChain using Streamlit secrets
 os.environ["LANGCHAIN_PROJECT"] = "NotionHouseTrackerProject"
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_API_KEY"] = str(os.getenv("LANGCHAIN_API_KEY"))
+os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
 
 today = datetime.now().date()
