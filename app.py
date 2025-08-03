@@ -19,6 +19,7 @@ except Exception as e:
     st.stop()
 
 # ✅ Set environment variables for LangChain using Streamlit secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 os.environ["LANGCHAIN_PROJECT"] = "NotionHouseTrackerProject"
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
@@ -309,3 +310,4 @@ if submitted and nl_prompt:
 st.markdown("---")
 
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
+
