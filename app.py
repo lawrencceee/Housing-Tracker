@@ -7,20 +7,10 @@ import os
 import json
 import re
 
-# --- ⚙️ SETUP AND CONFIGURATION ⚙️ ---
-
-# Load environment variables from a .env file
-# Make sure your .env file has:
-# NOTION_API_KEY="your_notion_api_key"
-# OPENAI_API_KEY="your_openai_api_key"
 load_dotenv()
 
-# --- ⚠️ ACTION REQUIRED ⚠️ ---
-# 1. Replace "your-house-tracker-database-id" with your actual Notion Database ID.
-# 2. Go to your Notion database, click "•••" -> "Add connections" -> and select the integration associated with your API key.
 DATABASE_ID = "244aef75cd248040aee9fbbe4a05e42f"
 
-# Initialize Notion and OpenAI Clients
 try:
     notion = Client(auth=os.getenv("NOTION_API_KEY"))
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
@@ -28,23 +18,17 @@ except Exception as e:
     st.error(f"Failed to initialize clients. Please check your API keys in the .env file. Error: {e}")
     st.stop()
     
-# LangSmith Tracing (Optional, but recommended for debugging)
 os.environ["LANGCHAIN_PROJECT"] = "NotionHouseTrackerProject"
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_API_KEY"] = str(os.getenv("LANGCHAIN_API_KEY"))
 
 
-# Get date information for prompts
 today = datetime.now().date()
 yesterday = today - timedelta(days=1)
 last_week = today - timedelta(days=7)
 
-# Define constant options for database properties
 HOUSING_TYPES = ["Studio", "1 Bedroom", "2 Bedroom", "3 Bedroom+", "House"]
 STATUS_OPTIONS = ["Not yet applied", "Applied", "Rejected", "Accepted", "Interview/Tour", "Waitlisted"]
-
-
-# --- 🤖 CORE FUNCTIONS 🤖 ---
 
 def create_notion_page(**kwargs):
     """Creates a new page in the Notion database with dynamically built properties."""
@@ -88,7 +72,6 @@ def update_notion_status(property_name: str, new_status: str) -> str:
     page = search_results["results"][0]
     page_id = page["id"]
     
-    # Extract the full property name for a better user confirmation message
     title_data = page["properties"].get("Property Name", {}).get("title", [])
     full_property_name = title_data[0]["text"]["content"] if title_data else property_name
 
@@ -323,4 +306,5 @@ if submitted and nl_prompt:
             st.info("Please check that your Notion Database ID is correct and that the integration has been shared with the database.")
 
 st.markdown("---")
+
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
