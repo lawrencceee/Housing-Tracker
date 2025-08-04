@@ -13,13 +13,16 @@ DATABASE_ID = "244aef75cd248040aee9fbbe4a05e42f"
 
 try:
     notion = Client(auth=st.secrets["NOTION_API_KEY"])
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    llm = ChatOpenAI(
+    model="gpt-4o-mini",  # or "gpt-4o-mini", etc.
+    temperature=0,
+    openai_api_key=st.secrets["OPENAI_API_KEY"]
+)
 except Exception as e:
     st.error(f"Failed to initialize clients. Please check your API keys in Streamlit secrets. Error: {e}")
     st.stop()
 
 # ✅ Set environment variables for LangChain using Streamlit secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
 os.environ["LANGCHAIN_PROJECT"] = "NotionHouseTrackerProject"
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
@@ -310,4 +313,5 @@ if submitted and nl_prompt:
 st.markdown("---")
 
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
+
 
