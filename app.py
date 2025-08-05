@@ -220,8 +220,8 @@ def get_intent_and_payload(nl_prompt: str) -> dict:
     - For "price", extract the currency and amount as a string (e.g., "EUR 1772", "2500 USD per month").
 
     EXAMPLES:
-    Input: "I applied yesterday to 17 Spencer House, Custom House Square, Mayor Street Lower, IFSC, Dublin 1 for eur 1772 per month."
-    Output: {{"intent": "create", "property_name": "17 Spencer House", "location": "Custom House Square, Mayor Street Lower, IFSC, Dublin 1", "price": "EUR 1772 per month", "status": "Applied", "application_date": "{yesterday.isoformat()}"}}
+    Input: "I applied yesterday to 17 Spencer House, Custom House Square, Mayor Street Lower, IFSC, Dublin 1 for eur 1772 per month for single bed.."
+    Output: {{"intent": "create", "property_name": "17 Spencer House", "location": "Custom House Square, Mayor Street Lower, IFSC, Dublin 1", "price": "EUR 1772 per month", "housing_type_needed": "1 Bedroom", "status": "Applied", "application_date": "{yesterday.isoformat()}"}}
 
     Input: "I applied to Sunset Apartments yesterday for a 1 bedroom"
     Output: {{"intent": "create", "property_name": "Sunset Apartments", "housing_type": "1 Bedroom", "status": "Applied", "application_date": "{yesterday.isoformat()}"}}
@@ -319,5 +319,6 @@ if submitted and nl_prompt:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
+
 
 
