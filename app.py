@@ -35,6 +35,9 @@ last_week = today - timedelta(days=7)
 HOUSING_TYPES = ["Studio", "1 Bedroom", "2 Bedroom", "3 Bedroom+", "House"]
 STATUS_OPTIONS = ["Not yet applied", "Applied", "Rejected", "Accepted", "Interview/Tour", "Waitlisted"]
 
+
+# --- 🤖 CORE FUNCTIONS 🤖 ---
+
 def create_notion_page(**kwargs):
     """Creates a new page in the Notion database with dynamically built properties."""
     
@@ -59,6 +62,10 @@ def create_notion_page(**kwargs):
     location = kwargs.get("location")
     if location:
         properties["Location"] = {"rich_text": [{"text": {"content": location}}]}
+
+    price = kwargs.get("price")
+    if price:
+        properties["Price"] = {"rich_text": [{"text": {"content": str(price)}}]} # Add price property
 
     notion.pages.create(parent={"database_id": DATABASE_ID}, properties=properties)
 
@@ -103,10 +110,13 @@ def get_filter_from_llm(nl_prompt: str) -> dict:
     - "Housing Type Needed": (Select) Options: {', '.join(HOUSING_TYPES)}
     - "Status": (Status) Options: {', '.join(STATUS_OPTIONS)}
     - "Location": (Rich Text)
+    - "Price": (Rich Text)
+    - "Website Link": (URL)
+    - "Contact Information": (Rich Text)
 
-    Your task is to generate a JSON object with two keys: "filter" and "sorts".
-    - The "filter" object should match the user's query.
-    - The "sorts" object should ALWAYS sort results by "Application Date" in descending order unless specified otherwise.
+    Your task is to generate a JSON object with "filter" and "sorts" keys.
+    - The "filter" should match the user's query. For text fields like "Price" or "Location", use a "contains" filter.
+    - The "sorts" should ALWAYS sort by "Application Date" in descending order.
 
     EXAMPLES:
     User: "What houses did I apply to last week?"
@@ -133,13 +143,14 @@ def get_filter_from_llm(nl_prompt: str) -> dict:
       "sorts": [{{"property": "Application Date", "direction": "descending"}}]
     }}
     
-    User: "What properties in Toronto did I apply to?"
+    User: "show me applications in Dublin for under 2000 eur"
     Output:
     {{
       "filter": {{
         "and": [
-            {{"property": "Location", "rich_text": {{"contains": "Toronto"}}}},
-            {{"property": "Status", "status": {{"does_not_equal": "Not yet applied"}}}}
+          {{"property": "Location", "rich_text": {{"contains": "Dublin"}}}},
+          {{"property": "Price", "rich_text": {{"contains": "2000"}}}},
+          {{"property": "Price", "rich_text": {{"contains": "eur"}}}}
         ]
       }},
       "sorts": [{{"property": "Application Date", "direction": "descending"}}]
@@ -148,14 +159,11 @@ def get_filter_from_llm(nl_prompt: str) -> dict:
     User: "list all my applications"
     Output:
     {{
-        "filter": {{
-            "property": "Application Date",
-            "date": {{"is_not_empty": true}}
-        }},
+        "filter": {{ "property": "Application Date", "date": {{"is_not_empty": true}} }},
         "sorts": [{{"property": "Application Date", "direction": "descending"}}]
     }}
 
-    Now, generate the JSON for the following user request. Only output the JSON object, nothing else.
+    Now, generate the JSON for the following user request. Only output the JSON object.
     User: "{nl_prompt}"
     """
     response = llm.invoke(prompt).content
@@ -195,24 +203,26 @@ def query_notion_database(payload: dict) -> list:
             
             if value is not None:
                 record[name] = value
-                
     return records
 
 
 def get_intent_and_payload(nl_prompt: str) -> dict:
-    """Uses an LLM to determine the user's intent (create, update, query) and extract entities."""
+    """Uses an LLM to determine intent and extract entities."""
     prompt = f"""
     You are an expert system that classifies a user's intent and extracts information for a house application tracker.
     Today is {today.isoformat()}. Yesterday was {yesterday.isoformat()}.
 
     Return JSON with:
     - "intent": "create", "update", or "query"
-    - And relevant fields: "property_name", "website_link", "application_date", "housing_type", "contact_info", "status", "location".
+    - And relevant fields: "property_name", "website_link", "application_date", "housing_type", "contact_info", "status", "location", "price".
 
-    - For "create" or "update", "status" must be one of: {', '.join(STATUS_OPTIONS)}.
-    - For "create", if status is not mentioned, default to "Applied". If the user says they "haven't applied yet", use "Not yet applied".
+    - For "status", use one of: {', '.join(STATUS_OPTIONS)}. Default to "Applied" if not mentioned.
+    - For "price", extract the currency and amount as a string (e.g., "EUR 1772", "2500 USD per month").
 
     EXAMPLES:
+    Input: "I applied yesterday to 17 Spencer House, Custom House Square, Mayor Street Lower, IFSC, Dublin 1 for eur 1772 per month."
+    Output: {{"intent": "create", "property_name": "17 Spencer House", "location": "Custom House Square, Mayor Street Lower, IFSC, Dublin 1", "price": "EUR 1772 per month", "status": "Applied", "application_date": "{yesterday.isoformat()}"}}
+
     Input: "I applied to Sunset Apartments yesterday for a 1 bedroom"
     Output: {{"intent": "create", "property_name": "Sunset Apartments", "housing_type": "1 Bedroom", "status": "Applied", "application_date": "{yesterday.isoformat()}"}}
 
@@ -226,9 +236,6 @@ def get_intent_and_payload(nl_prompt: str) -> dict:
     Output: {{"intent": "create", "property_name": "Maple Gardens", "status": "Not yet applied"}}
     
     Input: "show me all my accepted applications"
-    Output: {{"intent": "query"}}
-
-    Input: "how many places have I applied to?"
     Output: {{"intent": "query"}}
     
     Now, classify the intent and extract the fields for the following input. Only output the JSON object.
@@ -266,7 +273,7 @@ st.markdown("Track your house application here Kanojo~")
 
 with st.expander("💡 Example Commands"):
     st.markdown("""
-    **Adding:** `"I applied to Sunset Apartments yesterday for a 1 bedroom"`  
+    **Adding:** `"I applied to Sunset Apartments yesterday for a 1 bedroom for 2200 per month"`  
     **Updating:** `"Maple Gardens rejected my application"`  
     **Querying:** `"Show me all accepted applications"` or `"What did I apply to last week?"`
     """)
@@ -311,7 +318,5 @@ if submitted and nl_prompt:
             st.info("Please check that your Notion Database ID is correct and that the integration has been shared with the database.")
 
 st.markdown("---")
-
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
-
 
