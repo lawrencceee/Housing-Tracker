@@ -100,28 +100,66 @@ def scrape_daft_ie(url: str) -> dict:
             # Split address parts
             address_parts = [part.strip() for part in full_address.split(',')]
             
-            # Property name is the first part, cleaned up
+            # Property name extraction logic
             raw_property_name = address_parts[0] if address_parts else "Unknown Property"
             
-            # Clean up common prefixes and bedroom info from property name
-            property_name = raw_property_name.replace("Apartment ", "").replace("House ", "").replace("Studio ", "").strip()
+            # Clean up the raw property name
+            property_name = raw_property_name.strip()
             
-            # Remove bedroom info patterns like "1 Bedroom", "2 Bed", etc.
-            bedroom_patterns = [
-                r'^\d+\s+Bedroom\s*',
-                r'^\d+\s+Bed\s*',
-                r'^\d+\s+BR\s*',
-                r'^Studio\s*'
+            # Remove common prefixes and apartment/flat numbers
+            apartment_patterns = [
+                r'^Apartment\s+\d+\s*,?\s*',          # "Apartment 21, " or "Apartment 5, "
+                r'^Flat\s+\d+\s*,?\s*',               # "Flat 5, "
+                r'^Studio\s+\d+\s*,?\s*',             # "Studio 3, "
+                r'^Unit\s+\d+\s*,?\s*',               # "Unit 12, "
+                r'^\d+\s+Bedroom\s+Apartment\s*,?\s*', # "1 Bedroom Apartment, "
+                r'^\d+\s+Bedroom\s+Flat\s*,?\s*',      # "2 Bedroom Flat, "
+                r'^\d+\s+Bedroom\s*,?\s*',             # "1 Bedroom, "
+                r'^Apartment\s*,?\s*',                 # "Apartment, "
+                r'^Flat\s*,?\s*',                      # "Flat, "
+                r'^Studio\s*,?\s*',                    # "Studio, "
+                r'^House\s*,?\s*'                      # "House, "
             ]
-            for pattern in bedroom_patterns:
+            
+            for pattern in apartment_patterns:
                 property_name = re.sub(pattern, '', property_name, flags=re.IGNORECASE).strip()
             
-            # Remove any leading symbols, numbers, or special characters
-            property_name = re.sub(r'^[^\w\s]+', '', property_name).strip()  # Remove leading symbols
-            property_name = re.sub(r'^\d+\s*', '', property_name).strip()    # Remove leading numbers
+            # Handle cases like "39 Synge Street" where we want the street name/number combo
+            # or "Castle Gate" where we want the building name
             
-            # Clean up any remaining extra spaces
-            property_name = ' '.join(property_name.split())
+            # If what remains is just a number followed by a street name, keep it as is
+            # Example: "39 Synge Street" -> "39 Synge Street"
+            if re.match(r'^\d+\s+[A-Za-z]', property_name):
+                # This looks like a street address, keep it
+                pass
+            else:
+                # For named buildings, take the first meaningful part
+                # Split by comma and take the first non-empty part
+                name_parts = [part.strip() for part in property_name.split(',') if part.strip()]
+                if name_parts:
+                    property_name = name_parts[0]
+            
+            # Remove any remaining leading symbols or numbers that aren't part of a street address
+            if not re.match(r'^\d+\s+[A-Za-z]', property_name):  # Don't clean if it's like "39 Street Name"
+                property_name = re.sub(r'^[^\w\s]+', '', property_name).strip()  # Remove leading symbols
+                # Only remove leading standalone numbers if they're not part of a street address
+                if not re.match(r'^\d+\s+[A-Za-z]', property_name):
+                    property_name = re.sub(r'^\d+\s*(?![A-Za-z])', '', property_name).strip()
+            
+            # Clean up any remaining extra spaces and commas
+            property_name = re.sub(r'\s*,\s*', ' ', property_name)  # Replace commas with spaces
+            property_name = ' '.join(property_name.split())  # Normalize spaces
+            
+            # Final fallback - if we still have nothing meaningful, try to get from address parts
+            if not property_name or len(property_name) < 2:
+                if len(address_parts) > 1:
+                    # Try the second part of the address
+                    property_name = address_parts[1].strip()
+                    # Clean it similarly
+                    for pattern in apartment_patterns:
+                        property_name = re.sub(pattern, '', property_name, flags=re.IGNORECASE).strip()
+                else:
+                    property_name = "Unknown Property"
             
             scraped_data['property_name'] = property_name if property_name else "Unknown Property"
             
