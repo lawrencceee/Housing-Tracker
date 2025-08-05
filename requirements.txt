@@ -2,6 +2,5 @@ streamlit
 python-dotenv
 notion-client
 langchain-openai
-requests
-beautifulsoup4
 selenium
+
