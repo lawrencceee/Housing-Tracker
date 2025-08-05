@@ -101,7 +101,7 @@ def get_filter_from_llm(nl_prompt: str) -> dict:
     
     prompt = f"""
     You are an expert system that converts natural language into a Notion API JSON payload.
-    The user is querying a house application tracker database.
+    The user is querying a house application tracker database for renting an apartment in Dublin.
     Today is {today.isoformat()}.
 
     DATABASE SCHEMA:
@@ -319,4 +319,5 @@ if submitted and nl_prompt:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
+
 
