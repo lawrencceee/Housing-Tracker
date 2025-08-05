@@ -21,6 +21,7 @@ Check out my [Notion Job Tracker Agent](https://github.com/lawrencceee/LangChain
 
 ## Demo
 Take a website as an example:
+
 https://www.daft.ie/for-rent/apartment-1-bed-oneill-court-main-street-belmayne-dublin-13/5987932
 <img width="1046" height="781" alt="image" src="https://github.com/user-attachments/assets/dd98c485-02bf-4d72-80e9-591eadbad19c" />
 
