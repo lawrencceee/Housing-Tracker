@@ -210,7 +210,7 @@ with st.form("notion_form"):
     submitted = st.form_submit_button("Enter ", use_container_width=True)
 
 if submitted and nl_prompt:
-    if not all([DATABASE_ID, NOTION_API_KEY, OPENAI_API_KEY]):
+    if not all([DATABASE_ID, st.secrets.get("NOTION_API_KEY"), st.secrets.get("OPENAI_API_KEY")]):
         st.error("❌ CONFIGURATION ERROR: Please set your DATABASE_ID, NOTION_API_KEY, and OPENAI_API_KEY as Secrets in Streamlit Cloud.")
     else:
         try:
@@ -263,6 +263,7 @@ if submitted and nl_prompt:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
+
 
 
 
