@@ -48,6 +48,16 @@ STATUS_OPTIONS = ["Not yet applied", "Applied", "Rejected", "Accepted", "Intervi
 
 # --- 🤖 CORE FUNCTIONS 🤖 ---
 
+def extract_dublin_zone(address_text: str) -> str:
+    """Extracts Dublin zone (D1, D2, etc.) from address text."""
+    # Look for patterns like "Dublin 1", "Dublin 12", etc.
+    dublin_pattern = r"Dublin\s+(\d{1,2})"
+    match = re.search(dublin_pattern, address_text, re.IGNORECASE)
+    if match:
+        zone_number = match.group(1)
+        return f"D{zone_number}"
+    return None
+
 def scrape_daft_ie(url: str) -> dict:
     """Scrapes a daft.ie URL using a headless browser on Streamlit Cloud."""
     chrome_options = Options()
@@ -84,6 +94,11 @@ def scrape_daft_ie(url: str) -> dict:
             address_parts = full_address.split(',')
             scraped_data['property_name'] = address_parts[0].replace("Apartment ", "").strip()
             scraped_data['location'] = ','.join(address_parts[1:]).strip()
+            
+            # Extract Dublin Zone
+            dublin_zone = extract_dublin_zone(full_address)
+            if dublin_zone:
+                scraped_data['dublin_zone'] = dublin_zone
         except Exception: pass
             
         try:
@@ -101,9 +116,16 @@ def scrape_daft_ie(url: str) -> dict:
     return scraped_data
 
 def parse_natural_date(date_input: str) -> str:
+    """Parse natural language dates including relative dates like '3 days ago'."""
     if not date_input:
         return datetime.now().date().isoformat()
-    parsed = dateparser.parse(date_input, settings={"PREFER_DATES_FROM": "past"})
+    
+    # Use dateparser with settings to handle relative dates properly
+    parsed = dateparser.parse(date_input, settings={
+        "PREFER_DATES_FROM": "past",
+        "RELATIVE_BASE": datetime.now()
+    })
+    
     if parsed:
         return parsed.date().isoformat()
     else:
@@ -133,6 +155,8 @@ def create_notion_page(**kwargs):
         properties["Location"] = {"rich_text": [{"text": {"content": kwargs.get("location")}}]}
     if kwargs.get("price"):
         properties["Price"] = {"rich_text": [{"text": {"content": str(kwargs.get("price"))}}]}
+    if kwargs.get("dublin_zone"):
+        properties["Dublin Zone"] = {"rich_text": [{"text": {"content": kwargs.get("dublin_zone")}}]}
 
     notion.pages.create(parent={"database_id": DATABASE_ID}, properties=properties)
 
@@ -154,13 +178,15 @@ def get_filter_from_llm(nl_prompt: str) -> dict:
     You are an expert system that converts natural language into a Notion API JSON payload.
     The user is querying a house application tracker database for housing in Dublin. Today is {today.isoformat()}.
     DATABASE SCHEMA:
-    - "Property Name": (Title), "Application Date": (Date), "Housing Type Needed": (Select), "Status": (Status), "Location": (Rich Text), "Price": (Rich Text)
+    - "Property Name": (Title), "Application Date": (Date), "Housing Type Needed": (Select), "Status": (Status), "Location": (Rich Text), "Price": (Rich Text), "Dublin Zone": (Rich Text)
     Your task is to generate a JSON object with "filter" and "sorts" keys. The "sorts" should ALWAYS sort by "Application Date" in descending order.
     EXAMPLES:
     User: "What houses did I apply to last week?"
     Output: {{"filter": {{"and": [{{"property": "Application Date", "date": {{"on_or_after": "{last_week.isoformat()}"}}}}, {{"property": "Status", "status": {{"does_not_equal": "Not yet applied"}}}} ] }}, "sorts": [{{"property": "Application Date", "direction": "descending"}}]}}
     User: "show me applications in Dublin for under 2000 eur"
     Output: {{"filter": {{"and": [{{"property": "Location", "rich_text": {{"contains": "Dublin"}}}}, {{"property": "Price", "rich_text": {{"contains": "2000"}}}}, {{"property": "Price", "rich_text": {{"contains": "eur"}}}} ] }}, "sorts": [{{"property": "Application Date", "direction": "descending"}}]}}
+    User: "show me applications in D1"
+    Output: {{"filter": {{"property": "Dublin Zone", "rich_text": {{"contains": "D1"}}}}, "sorts": [{{"property": "Application Date", "direction": "descending"}}]}}
     Now, generate the JSON for the following user request. Only output the JSON object. User: "{nl_prompt}"
     """
     response = llm.invoke(prompt).content
@@ -186,24 +212,54 @@ def query_notion_database(payload: dict) -> list:
             elif prop_type == "date" and prop_data.get("date"): value = prop_data["date"]["start"]
             elif prop_type == "url" and prop_data.get("url"): value = prop_data["url"]
             if value is not None: record[name] = value
+        records.append(record)
     return records
+
+def extract_date_from_text(text: str) -> str:
+    """Extract date expressions from text like 'I applied 3 days ago'."""
+    # Look for relative date patterns
+    relative_patterns = [
+        r'(\d+)\s+days?\s+ago',
+        r'(\d+)\s+weeks?\s+ago', 
+        r'yesterday',
+        r'today',
+        r'last\s+week',
+        r'last\s+month'
+    ]
+    
+    for pattern in relative_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(0)
+    
+    return None
 
 def get_intent_and_payload(nl_prompt: str) -> dict:
     """Uses an LLM to determine intent and extract entities for manual input."""
     prompt = f"""
     You are an expert system that classifies a user's intent and extracts information for a house application tracker.
     Today is {today.isoformat()}. Yesterday was {yesterday.isoformat()}.
-    Return JSON with "intent" and relevant fields: "property_name", "website_link", "application_date", "housing_type", "contact_info", "status", "location", "price".
+    Return JSON with "intent" and relevant fields: "property_name", "website_link", "application_date", "housing_type", "contact_info", "status", "location", "price", "dublin_zone".
     For "status", use one of: {', '.join(STATUS_OPTIONS)}. Default to "Applied". For "price", extract the currency and amount as a string.
+    
+    IMPORTANT: Pay special attention to date expressions like "3 days ago", "yesterday", "last week", etc. Extract these exactly as written.
+    
     EXAMPLES:
     Input: "I applied yesterday to 17 Spencer House, Custom House Square, Mayor Street Lower, IFSC, Dublin 1 for eur 1772 per month for 1 bedroom."
-    Output: {{"intent": "create", "property_name": "17 Spencer House", "location": "Custom House Square, Mayor Street Lower, IFSC, Dublin 1", "price": "EUR 1772 per month", "housing_type_needed" : "1 Bedroom", "status": "Applied", "application_date": "{yesterday.isoformat()}"}}
-    Input: "I applied to Sunset Apartments yesterday for a 1 bedroom"
-    Output: {{"intent": "create", "property_name": "Sunset Apartments", "housing_type": "1 Bedroom", "status": "Applied", "application_date": "{yesterday.isoformat()}"}}
+    Output: {{"intent": "create", "property_name": "17 Spencer House", "location": "Custom House Square, Mayor Street Lower, IFSC, Dublin 1", "price": "EUR 1772 per month", "housing_type": "1 Bedroom", "status": "Applied", "application_date": "yesterday", "dublin_zone": "D1"}}
+    
+    Input: "I applied to Sunset Apartments 3 days ago for a 1 bedroom"
+    Output: {{"intent": "create", "property_name": "Sunset Apartments", "housing_type": "1 Bedroom", "status": "Applied", "application_date": "3 days ago"}}
+    
+    Input: "I applied to https://www.daft.ie/for-rent/apartment-17-spencer-house-custom-house-square-mayor-street-lower-ifsc-dublin-1/6230870 3 days ago"
+    Output: {{"intent": "create", "website_link": "https://www.daft.ie/for-rent/apartment-17-spencer-house-custom-house-square-mayor-street-lower-ifsc-dublin-1/6230870", "status": "Applied", "application_date": "3 days ago"}}
+    
     Input: "Oak Street House rejected my application"
     Output: {{"intent": "update", "property_name": "Oak Street House", "status": "Rejected"}}
+    
     Input: "show me all my accepted applications"
     Output: {{"intent": "query"}}
+    
     Now, classify the intent and extract the fields for the following input. Only output the JSON object. Input: "{nl_prompt}"
     """
     response = llm.invoke(prompt).content.strip()
@@ -217,10 +273,10 @@ st.markdown("Track your house application here Kanojo~")
 
 with st.expander("💡 Example Commands"):
     st.markdown("""
-    **Add Manually:** `"I applied to Sunset Apartments for 2200 per month"`  
-    **Add via Link:** Just paste a `daft.ie` link, like `https://www.daft.ie/for-rent/...`  
+    **Add Manually:** `"I applied to Sunset Apartments for 2200 per month 3 days ago"`  
+    **Add via Link:** `"I applied to https://www.daft.ie/for-rent/... 3 days ago"`  
     **Update:** `"Maple Gardens rejected my application"`  
-    **Query:** `"Show me all accepted applications"`
+    **Query:** `"Show me all accepted applications"` or `"Show me applications in D1"`
     """)
 
 with st.form("notion_form"):
@@ -237,6 +293,10 @@ if submitted and nl_prompt:
 
             if url_match:
                 url = url_match.group(0).strip('.') # Clean any trailing punctuation
+                
+                # Extract date from the text if present
+                date_from_text = extract_date_from_text(nl_prompt)
+                
                 with st.spinner(f"🔍 Scraping {url}..."):
                     scraped_data = scrape_daft_ie(url)
                 
@@ -246,9 +306,16 @@ if submitted and nl_prompt:
                     scraped_data['website_link'] = url
                     scraped_data['status'] = 'Applied'
                     
+                    # Use the date from text if available, otherwise default to today
+                    if date_from_text:
+                        scraped_data['application_date'] = date_from_text
+                    
                     with st.spinner("✍️ Creating entry in Notion..."):
                         create_notion_page(**scraped_data)
-                    st.success(f"✅ Scraped and created application for **{scraped_data.get('property_name', 'Unknown Property')}**!")
+                    
+                    zone_info = f" in {scraped_data['dublin_zone']}" if scraped_data.get('dublin_zone') else ""
+                    date_info = f" (applied {date_from_text})" if date_from_text else ""
+                    st.success(f"✅ Scraped and created application for **{scraped_data.get('property_name', 'Unknown Property')}**{zone_info}{date_info}!")
 
             else:
                 # If no URL, use the original AI-based logic
@@ -266,7 +333,10 @@ if submitted and nl_prompt:
                 elif intent == "create":
                     with st.spinner("✍️ Creating entry in Notion..."):
                         create_notion_page(**action)
-                    st.success(f"✅ Application for **{action.get('property_name')}** has been created!")
+                    
+                    zone_info = f" in {action.get('dublin_zone')}" if action.get('dublin_zone') else ""
+                    date_info = f" (applied {action.get('application_date')})" if action.get('application_date') and action.get('application_date') != datetime.now().date().isoformat() else ""
+                    st.success(f"✅ Application for **{action.get('property_name')}**{zone_info}{date_info} has been created!")
 
                 elif intent == "update":
                     with st.spinner("🔄 Updating status in Notion..."):
@@ -281,13 +351,3 @@ if submitted and nl_prompt:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
-
