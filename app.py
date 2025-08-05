@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from notion_client import Client
 from datetime import datetime, timedelta
 import streamlit as st
+import dateparser
 import os
 import json
 import re
@@ -99,13 +100,29 @@ def scrape_daft_ie(url: str) -> dict:
 
     return scraped_data
 
+def parse_natural_date(date_input: str) -> str:
+    if not date_input:
+        return datetime.now().date().isoformat()
+    parsed = dateparser.parse(date_input, settings={"PREFER_DATES_FROM": "past"})
+    if parsed:
+        return parsed.date().isoformat()
+    else:
+        return datetime.now().date().isoformat()
+        
 def create_notion_page(**kwargs):
     """Creates a new page in the Notion database with dynamically built properties."""
     properties = {
-        "Property Name": {"title": [{"text": {"content": kwargs.get("property_name", "Unknown Property")}}]},
-        "Application Date": {"date": {"start": kwargs.get("application_date") or today.isoformat()}},
-        "Status": {"status": {"name": kwargs.get("status", "Applied")}}
+        "Property Name": {
+            "title": [{"text": {"content": kwargs.get("property_name", "Unknown Property")}}]
+        },
+        "Application Date": {
+            "date": {"start": parse_natural_date(kwargs.get("application_date"))}
+        },
+        "Status": {
+            "status": {"name": kwargs.get("status", "Applied")}
+        }
     }
+
     if kwargs.get("website_link"):
         properties["Website Link"] = {"url": kwargs.get("website_link")}
     if kwargs.get("housing_type") and kwargs.get("housing_type") in HOUSING_TYPES:
@@ -116,6 +133,7 @@ def create_notion_page(**kwargs):
         properties["Location"] = {"rich_text": [{"text": {"content": kwargs.get("location")}}]}
     if kwargs.get("price"):
         properties["Price"] = {"rich_text": [{"text": {"content": str(kwargs.get("price"))}}]}
+
     notion.pages.create(parent={"database_id": DATABASE_ID}, properties=properties)
 
 def update_notion_status(property_name: str, new_status: str) -> str:
@@ -263,6 +281,7 @@ if submitted and nl_prompt:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
+
 
 
 
