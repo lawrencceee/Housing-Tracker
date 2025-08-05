@@ -19,7 +19,7 @@ Built to reduce manual data entry and track property applications in Dublin duri
 ## 📁 Related Projects
 Check out my [Notion Job Tracker Agent](https://github.com/lawrencceee/LangChain_notion_agent) for another LangChain-powered use case.
 
-## Demo
+## 💬 Demo
 Take a website as an example:  
 https://www.daft.ie/for-rent/apartment-1-bed-oneill-court-main-street-belmayne-dublin-13/5987932
 <img width="1046" height="781" alt="image" src="https://github.com/user-attachments/assets/dd98c485-02bf-4d72-80e9-591eadbad19c" />
