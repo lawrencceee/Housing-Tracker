@@ -21,7 +21,7 @@ load_dotenv()
 DATABASE_ID = "244aef75cd248040aee9fbbe4a05e42f"
 
 try:
-    notion_api_key = Client(auth=st.secrets["NOTION_API_KEY"])
+    notion = Client(auth=st.secrets["NOTION_API_KEY"])
     llm = ChatOpenAI(
     model="gpt-4o-mini",  # or "gpt-4o-mini", etc.
     temperature=0,
@@ -263,6 +263,7 @@ if submitted and nl_prompt:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
+
 
 
 
