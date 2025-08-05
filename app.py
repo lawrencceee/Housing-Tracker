@@ -134,7 +134,7 @@ def get_filter_from_llm(nl_prompt: str) -> dict:
     """Converts a natural language prompt into a Notion filter and sort JSON object using an LLM."""
     prompt = f"""
     You are an expert system that converts natural language into a Notion API JSON payload.
-    The user is querying a house application tracker database. Today is {today.isoformat()}.
+    The user is querying a house application tracker database for housing in Dublin. Today is {today.isoformat()}.
     DATABASE SCHEMA:
     - "Property Name": (Title), "Application Date": (Date), "Housing Type Needed": (Select), "Status": (Status), "Location": (Rich Text), "Price": (Rich Text)
     Your task is to generate a JSON object with "filter" and "sorts" keys. The "sorts" should ALWAYS sort by "Application Date" in descending order.
@@ -263,6 +263,7 @@ if submitted and nl_prompt:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center;'>I love you bb</div>", unsafe_allow_html=True)
+
 
 
 
