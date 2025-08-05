@@ -125,26 +125,32 @@ def scrape_daft_ie(url: str) -> dict:
             
             scraped_data['property_name'] = property_name if property_name else "Unknown Property"
             
-            # For location, clean the full address from bedroom information
+            # For location, create a clean official address format
             clean_address = full_address
             
-            # Remove bedroom info from the beginning of address
-            bedroom_clean_patterns = [
+            # Remove bedroom info and apartment/house prefixes from the beginning
+            address_clean_patterns = [
                 r'^Apartment\s+\d+\s+Bedroom\s*,?\s*',
-                r'^House\s+\d+\s+Bedroom\s*,?\s*',
+                r'^House\s+\d+\s+Bedroom\s*,?\s*',  
                 r'^Studio\s+Apartment\s*,?\s*',
                 r'^\d+\s+Bedroom\s+Apartment\s*,?\s*',
                 r'^\d+\s+Bedroom\s+House\s*,?\s*',
                 r'^\d+\s+Bedroom\s*,?\s*',
                 r'^\d+\s+Bed\s*,?\s*',
-                r'^Studio\s*,?\s*'
+                r'^Studio\s*,?\s*',
+                r'^Apartment\s*,?\s*',
+                r'^House\s*,?\s*'
             ]
             
-            for pattern in bedroom_clean_patterns:
+            for pattern in address_clean_patterns:
                 clean_address = re.sub(pattern, '', clean_address, flags=re.IGNORECASE).strip()
+            
+            # Remove any leading symbols or special characters from address
+            clean_address = re.sub(r'^[^\w\s]+', '', clean_address).strip()
             
             # Clean up any remaining extra commas or spaces at the beginning
             clean_address = re.sub(r'^,\s*', '', clean_address).strip()
+            clean_address = re.sub(r'\s*,\s*', ', ', clean_address)  # Normalize comma spacing
             clean_address = ' '.join(clean_address.split())  # Normalize spaces
             
             scraped_data['location'] = clean_address if clean_address else full_address
@@ -433,8 +439,8 @@ if submitted and nl_prompt:
                 if not scraped_data:
                     st.warning("Could not extract details from the website. It might be an unsupported page format.")
                 else:
-                    # Set the website link to the full original input text as requested
-                    scraped_data['website_link'] = nl_prompt.strip()
+                    # Set the website link to just the URL (not the full input text)
+                    scraped_data['website_link'] = url
                     scraped_data['status'] = 'Applied'
                     
                     # Use the date from text if available, otherwise default to today
@@ -446,22 +452,11 @@ if submitted and nl_prompt:
                     with st.spinner("✍️ Creating entry in Notion..."):
                         create_notion_page(**scraped_data)
                     
-                    # Create detailed success message with all extracted info
+                    # Create success message with key extracted info
                     zone_info = f" in {scraped_data['dublin_zone']}" if scraped_data.get('dublin_zone') else ""
                     date_info = f" (applied {scraped_data.get('application_date', 'today')})" if scraped_data.get('application_date') else ""
                     
                     st.success(f"✅ Created application for **{scraped_data.get('property_name', 'Unknown Property')}**{zone_info}{date_info}!")
-                    
-                    # Show extracted details
-                    with st.expander("📋 Extracted Details"):
-                        st.write(f"**Property Name:** {scraped_data.get('property_name', 'N/A')}")
-                        st.write(f"**Location:** {scraped_data.get('location', 'N/A')}")
-                        st.write(f"**Housing Type:** {scraped_data.get('housing_type', 'N/A')}")
-                        st.write(f"**Price:** {scraped_data.get('price', 'N/A')}")
-                        st.write(f"**Dublin Zone:** {scraped_data.get('dublin_zone', 'N/A')}")
-                        st.write(f"**Contact Info:** {scraped_data.get('contact_info', 'N/A')}")
-                        st.write(f"**Status:** {scraped_data.get('status', 'N/A')}")
-                        st.write(f"**Application Date:** {scraped_data.get('application_date', 'N/A')}")
 
             else:
                 # If no URL, use the original AI-based logic
