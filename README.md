@@ -30,4 +30,8 @@ After inputting the info into the interactive app:
 It will return the result accordingly based on user's input:
 <img width="712" height="66" alt="Screenshot 2025-08-05 at 5 08 41 PM" src="https://github.com/user-attachments/assets/62296e3d-e655-4341-95e3-0a08694f70ce" />
 
+Sample database layout from Notion:
+<img width="1199" height="553" alt="image" src="https://github.com/user-attachments/assets/9c92bb09-24ed-4e80-b508-4498df1723e7" />
+
+
 
