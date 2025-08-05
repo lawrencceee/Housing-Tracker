@@ -25,7 +25,7 @@ https://www.daft.ie/for-rent/apartment-1-bed-oneill-court-main-street-belmayne-d
 <img width="1046" height="781" alt="image" src="https://github.com/user-attachments/assets/dd98c485-02bf-4d72-80e9-591eadbad19c" />
 
 After inputting the info into the interactive app:
-<img width="745" height="555" alt="Screenshot 2025-08-05 at 5 05 30 PM" src="https://github.com/user-attachments/assets/16944f97-154e-4d1f-92a4-56c47e156b96" />
+<img width="1516" height="790" alt="image" src="https://github.com/user-attachments/assets/79ced45d-15c0-4d90-bf7b-97601c79e92e" />
 
 It will return the result accordingly based on user's input:
 <img width="712" height="66" alt="Screenshot 2025-08-05 at 5 08 41 PM" src="https://github.com/user-attachments/assets/62296e3d-e655-4341-95e3-0a08694f70ce" />
