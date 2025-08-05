@@ -83,32 +83,128 @@ def scrape_daft_ie(url: str) -> dict:
         wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, '[data-testid="price"]')))
         
         # --- Extract data using Selenium's finders ---
+        
+        # Extract Price
         try:
             price_element = driver.find_element(By.CSS_SELECTOR, '[data-testid="price"]')
-            scraped_data['price'] = price_element.text.replace(" per month", "")
-        except Exception: pass
+            price_text = price_element.text.replace(" per month", "").strip()
+            scraped_data['price'] = price_text
+        except Exception: 
+            scraped_data['price'] = "Price not found"
 
+        # Extract Address and Property Name
         try:
             address_element = driver.find_element(By.CSS_SELECTOR, '[data-testid="address"]')
             full_address = address_element.text
-            address_parts = full_address.split(',')
-            scraped_data['property_name'] = address_parts[0].replace("Apartment ", "").strip()
-            scraped_data['location'] = ','.join(address_parts[1:]).strip()
             
-            # Extract Dublin Zone
+            # Split address parts
+            address_parts = [part.strip() for part in full_address.split(',')]
+            
+            # Property name is the first part, cleaned up
+            raw_property_name = address_parts[0] if address_parts else "Unknown Property"
+            
+            # Clean up common prefixes from property name
+            property_name = raw_property_name.replace("Apartment ", "").replace("House ", "").replace("Studio ", "").strip()
+            
+            # If property name contains bedroom info, extract just the building/complex name
+            # Example: "1 Bedroom Griffith Wood" -> "Griffith Wood"
+            bedroom_pattern = r'^\d+\s+Bedroom\s+'
+            property_name = re.sub(bedroom_pattern, '', property_name, flags=re.IGNORECASE).strip()
+            
+            scraped_data['property_name'] = property_name
+            
+            # Location is the full address
+            scraped_data['location'] = full_address
+            
+            # Extract Dublin Zone from the full address
             dublin_zone = extract_dublin_zone(full_address)
             if dublin_zone:
                 scraped_data['dublin_zone'] = dublin_zone
-        except Exception: pass
+                
+        except Exception: 
+            scraped_data['property_name'] = "Unknown Property"
+            scraped_data['location'] = "Location not found"
             
+        # Extract Housing Type from URL or page content
         try:
-            beds_element = driver.find_element(By.CSS_SELECTOR, '[data-testid="beds"]')
-            beds_text = beds_element.text
-            if '1' in beds_text: scraped_data['housing_type'] = '1 Bedroom'
-            elif '2' in beds_text: scraped_data['housing_type'] = '2 Bedroom'
-            elif '3' in beds_text: scraped_data['housing_type'] = '3 Bedroom+'
-            elif 'Studio' in beds_text: scraped_data['housing_type'] = 'Studio'
+            # First try to get from URL
+            housing_type = None
+            url_lower = url.lower()
+            
+            if 'studio' in url_lower:
+                housing_type = 'Studio'
+            elif '1-bedroom' in url_lower or '1bedroom' in url_lower:
+                housing_type = '1 Bedroom'
+            elif '2-bedroom' in url_lower or '2bedroom' in url_lower:
+                housing_type = '2 Bedroom'
+            elif '3-bedroom' in url_lower or '3bedroom' in url_lower or 'bedroom' in url_lower and '3' in url_lower:
+                housing_type = '3 Bedroom+'
+            
+            # If not found in URL, try to get from beds element
+            if not housing_type:
+                try:
+                    beds_element = driver.find_element(By.CSS_SELECTOR, '[data-testid="beds"]')
+                    beds_text = beds_element.text.lower()
+                    if 'studio' in beds_text:
+                        housing_type = 'Studio'
+                    elif '1' in beds_text and 'bed' in beds_text:
+                        housing_type = '1 Bedroom'
+                    elif '2' in beds_text and 'bed' in beds_text:
+                        housing_type = '2 Bedroom'
+                    elif '3' in beds_text and 'bed' in beds_text:
+                        housing_type = '3 Bedroom+'
+                except Exception:
+                    pass
+            
+            if housing_type:
+                scraped_data['housing_type'] = housing_type
+                
         except Exception: pass
+
+        # Extract Contact Information
+        try:
+            # Try multiple selectors for contact info
+            contact_selectors = [
+                '[data-testid="agent-name"]',
+                '.agent-name',
+                '[data-testid="contact-name"]',
+                '.contact-name',
+                '.agent-details h3',
+                '.agent-details h4',
+                '.contact-details h3',
+                '.contact-details h4'
+            ]
+            
+            contact_info = None
+            for selector in contact_selectors:
+                try:
+                    contact_element = driver.find_element(By.CSS_SELECTOR, selector)
+                    if contact_element.text.strip():
+                        contact_info = contact_element.text.strip()
+                        break
+                except Exception:
+                    continue
+            
+            # If still not found, try to find any element containing agent/contact info
+            if not contact_info:
+                try:
+                    # Look for agent or contact information in various ways
+                    potential_contacts = driver.find_elements(By.XPATH, "//*[contains(text(), 'Contact') or contains(text(), 'Agent')]/following-sibling::*")
+                    for element in potential_contacts:
+                        text = element.text.strip()
+                        if text and len(text) > 2 and len(text) < 50:  # Reasonable name length
+                            contact_info = text
+                            break
+                except Exception:
+                    pass
+            
+            if contact_info:
+                scraped_data['contact_info'] = contact_info
+            else:
+                scraped_data['contact_info'] = "Contact info not found"
+                
+        except Exception:
+            scraped_data['contact_info'] = "Contact info not found"
 
     finally:
         driver.quit()
